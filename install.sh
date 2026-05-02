@@ -123,6 +123,81 @@ check_status() {
     fi
 }
 
+generate_env_config() {
+    local api_host="${KITTY_API_HOST:-http://127.0.0.1}"
+    local api_key="${KITTY_API_KEY:-}"
+    local node_id="${KITTY_NODE_ID:-3}"
+    local core_type="${KITTY_CORE:-ssr}"
+    local node_type="${KITTY_NODE_TYPE:-shadowsocksr}"
+    local listen_ip="${KITTY_LISTEN_IP:-0.0.0.0}"
+    local send_ip="${KITTY_SEND_IP:-0.0.0.0}"
+    local cert_mode="${KITTY_CERT_MODE:-self}"
+    local cert_domain="${KITTY_CERT_DOMAIN:-www.apple.com.cn}"
+    local cert_file="${KITTY_CERT_FILE:-/etc/kitty/fullchain.cer}"
+    local key_file="${KITTY_KEY_FILE:-/etc/kitty/cert.key}"
+    local cert_email="${KITTY_CERT_EMAIL:-kitty@github.com}"
+    local cert_provider="${KITTY_CERT_PROVIDER:-cloudflare}"
+    local dns_env_name="${KITTY_DNS_ENV_NAME:-env1}"
+
+    if [[ -z "$api_key" ]]; then
+        echo -e "${red}自动安装需要设置 KITTY_API_KEY。${plain}"
+        exit 1
+    fi
+    if ! [[ "$node_id" =~ ^[0-9]+$ ]]; then
+        echo -e "${red}KITTY_NODE_ID 必须是数字。${plain}"
+        exit 1
+    fi
+
+    mkdir -p /etc/kitty
+    if [[ -f /etc/kitty/config.json ]]; then
+        cp -f /etc/kitty/config.json /etc/kitty/config.json.bak
+    fi
+
+    cat > /etc/kitty/config.json <<EOF
+{
+  "Log": {
+    "Level": "info",
+    "Output": ""
+  },
+  "Cores": [
+    {
+      "Type": "$core_type"
+    }
+  ],
+  "Nodes": [
+    {
+      "Core": "$core_type",
+      "ApiHost": "$api_host",
+      "ApiKey": "$api_key",
+      "NodeID": $node_id,
+      "NodeType": "$node_type",
+      "Timeout": 30,
+      "ListenIP": "$listen_ip",
+      "SendIP": "$send_ip",
+      "DeviceOnlineMinTraffic": 200,
+      "MinReportTraffic": 0,
+      "ReportMinTraffic": 0,
+      "TCPFastOpen": false,
+      "SniffEnabled": true,
+      "CertConfig": {
+        "CertMode": "$cert_mode",
+        "RejectUnknownSni": false,
+        "CertDomain": "$cert_domain",
+        "CertFile": "$cert_file",
+        "KeyFile": "$key_file",
+        "Email": "$cert_email",
+        "Provider": "$cert_provider",
+        "DNSEnv": {
+          "EnvName": "$dns_env_name"
+        }
+      }
+    }
+  ]
+}
+EOF
+    echo -e "${green}已自动生成配置：/etc/kitty/config.json${plain}"
+}
+
 install_kitty() {
     if [[ -e /usr/local/kitty/ ]]; then
         rm -rf /usr/local/kitty/
@@ -270,12 +345,28 @@ EOF
     echo "------------------------------------------"
     # 首次安装询问是否生成配置文件
     if [[ $first_install == true ]]; then
-        read -rp "检测到你为第一次安装kitty,是否自动直接生成配置文件？(y/n): " if_generate
-        if [[ $if_generate == [Yy] ]]; then
+        if [[ "${KITTY_AUTO_CONFIG:-0}" == "1" ]]; then
+            generate_env_config
+            if [[ x"${release}" == x"alpine" ]]; then
+                service kitty restart
+            else
+                systemctl restart kitty
+            fi
+            sleep 2
+            check_status
+            if [[ $? == 0 ]]; then
+                echo -e "${green}kitty 启动成功${plain}"
+            else
+                echo -e "${red}kitty 可能启动失败，请使用 kitty log 查看日志信息${plain}"
+            fi
+        else
+            read -rp "检测到你为第一次安装kitty,是否自动直接生成配置文件？(y/n): " if_generate
+            if [[ $if_generate == [Yy] ]]; then
             curl -o ./initconfig.sh -Ls https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/initconfig.sh
             source initconfig.sh
             rm initconfig.sh -f
             generate_config_file
+            fi
         fi
     fi
 }

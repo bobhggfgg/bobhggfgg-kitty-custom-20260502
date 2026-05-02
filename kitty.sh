@@ -661,11 +661,9 @@ EOF
 generate_config_file() {
     echo -e "${yellow}kitty 配置文件生成向导${plain}"
     echo -e "${red}请阅读以下注意事项：${plain}"
-    echo -e "${red}1. 目前该功能正处测试阶段${plain}"
-    echo -e "${red}2. 生成的配置文件会保存到 /etc/kitty/config.json${plain}"
-    echo -e "${red}3. 原来的配置文件会保存到 /etc/kitty/config.json.bak${plain}"
-    echo -e "${red}4. 目前仅部分支持TLS${plain}"
-    echo -e "${red}5. 使用此功能生成的配置文件会自带审计，确定继续？(y/n)${plain}"
+    echo -e "${red}1. 生成的配置文件会保存到 /etc/kitty/config.json${plain}"
+    echo -e "${red}2. 原来的配置文件会保存到 /etc/kitty/config.json.bak${plain}"
+    echo -e "${red}3. 使用此功能生成的配置文件会自带审计，确定继续？(y/n)${plain}"
     read -rp "请输入：" continue_prompt
     if [[ "$continue_prompt" =~ ^[Nn][Oo]? ]]; then
         exit 0
