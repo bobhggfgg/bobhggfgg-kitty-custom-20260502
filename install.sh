@@ -132,20 +132,20 @@ install_kitty() {
     cd /usr/local/kitty/
 
     if  [ $# == 0 ] ;then
-        last_version=$(curl -Ls "https://api.github.com/repos/bobhggfgg/kitty-custom-20260502/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(curl -Ls "https://api.github.com/repos/bobhggfgg/bobhggfgg-kitty-custom-20260502/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
         if [[ ! -n "$last_version" ]]; then
             echo -e "${red}检测 kitty 版本失败，可能是超出 Github API 限制，请稍后再试，或手动指定 kitty 版本安装${plain}"
             exit 1
         fi
         echo -e "检测到 kitty 最新版本：${last_version}，开始安装"
-        wget --no-check-certificate -N --progress=bar -O /usr/local/kitty/kitty-linux.zip https://github.com/bobhggfgg/kitty-custom-20260502/releases/download/${last_version}/kitty-linux-${arch}.zip
+        wget --no-check-certificate -N --progress=bar -O /usr/local/kitty/kitty-linux.zip https://github.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/releases/download/${last_version}/kitty-linux-${arch}.zip
         if [[ $? -ne 0 ]]; then
             echo -e "${red}下载 kitty 失败，请确保你的服务器能够下载 Github 的文件${plain}"
             exit 1
         fi
     else
         last_version=$1
-        url="https://github.com/bobhggfgg/kitty-custom-20260502/releases/download/${last_version}/kitty-linux-${arch}.zip"
+        url="https://github.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/releases/download/${last_version}/kitty-linux-${arch}.zip"
         echo -e "开始安装 kitty $1"
         wget --no-check-certificate -N --progress=bar -O /usr/local/kitty/kitty-linux.zip ${url}
         if [[ $? -ne 0 ]]; then
@@ -245,7 +245,7 @@ EOF
     if [[ ! -f /etc/kitty/custom_inbound.json ]]; then
         cp custom_inbound.json /etc/kitty/
     fi
-    curl -o /usr/bin/kitty -Ls https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/kitty.sh
+    curl -o /usr/bin/kitty -Ls https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/kitty.sh
     chmod +x /usr/bin/kitty
     cd $cur_dir
     rm -f install.sh
@@ -272,7 +272,7 @@ EOF
     if [[ $first_install == true ]]; then
         read -rp "检测到你为第一次安装kitty,是否自动直接生成配置文件？(y/n): " if_generate
         if [[ $if_generate == [Yy] ]]; then
-            curl -o ./initconfig.sh -Ls https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/initconfig.sh
+            curl -o ./initconfig.sh -Ls https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/initconfig.sh
             source initconfig.sh
             rm initconfig.sh -f
             generate_config_file

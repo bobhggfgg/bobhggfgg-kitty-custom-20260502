@@ -96,7 +96,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -112,7 +112,7 @@ update() {
     else
         version=$2
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/install.sh) $version
+    bash <(curl -Ls https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/install.sh) $version
     if [[ $? == 0 ]]; then
         echo -e "${green}更新完成，已自动重启 kitty，请使用 kitty log 查看运行日志${plain}"
         exit
@@ -300,7 +300,7 @@ install_bbr() {
 }
 
 update_shell() {
-    wget -O /usr/bin/kitty -N --no-check-certificate https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/kitty.sh
+    wget -O /usr/bin/kitty -N --no-check-certificate https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/kitty.sh
     if [[ $? != 0 ]]; then
         echo ""
         echo -e "${red}下载脚本失败，请检查本机能否连接 Github${plain}"
@@ -1016,7 +1016,7 @@ show_usage() {
 show_menu() {
     echo -e "
   ${green}kitty 后端管理脚本，${plain}${red}不适用于docker${plain}
---- https://github.com/bobhggfgg/kitty-custom-20260502 ---
+--- https://github.com/bobhggfgg/bobhggfgg-kitty-custom-20260502 ---
   ${green}0.${plain} 修改配置
 ————————————————
   ${green}1.${plain} 安装 kitty
