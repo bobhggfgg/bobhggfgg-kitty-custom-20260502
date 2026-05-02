@@ -36,7 +36,8 @@
 ### 一键安装
 
 ```
-wget -N https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/install.sh && bash install.sh
+wget -N https://raw.githubusercontent.com/bobhggfgg/bobhggfgg-kitty-custom-20260502/main/install.sh && bash install.sh kitty
+
 ```
 
 ### 免责声明
