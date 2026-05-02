@@ -1,8 +1,7 @@
 ## 特点
 
-* 永久开源且免费。
-* 支持Vmess/Vless, Trojan， Shadowsocks, Hysteria1/2多种协议。
-* 支持Vless和XTLS等新特性。
+* 支持Vmess/Vless, Trojan， Shadowsocks,ShadowsocksR, Hysteria1/2多种协议。
+* 支持Vless和XTLS,simple_obfs_http等新特性。
 * 支持单实例对接多节点，无需重复启动。
 * 支持限制在线IP。
 * 支持限制Tcp连接数。
@@ -37,7 +36,7 @@
 ### 一键安装
 
 ```
-wget -N https://raw.githubusercontent.com/wyx2685/V2bX-script/master/install.sh && bash install.sh
+wget -N https://raw.githubusercontent.com/bobhggfgg/kitty-custom-20260502/main/install.sh && bash install.sh
 ```
 
 ### 免责声明
