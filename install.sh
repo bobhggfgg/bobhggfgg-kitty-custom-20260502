@@ -138,6 +138,15 @@ generate_env_config() {
     local cert_email="${KITTY_CERT_EMAIL:-kitty@github.com}"
     local cert_provider="${KITTY_CERT_PROVIDER:-cloudflare}"
     local dns_env_name="${KITTY_DNS_ENV_NAME:-env1}"
+    local enable_proxy_protocol="${KITTY_ENABLE_PROXY_PROTOCOL:-false}"
+    case "${enable_proxy_protocol,,}" in
+        1|true|yes|y)
+            enable_proxy_protocol=true
+            ;;
+        *)
+            enable_proxy_protocol=false
+            ;;
+    esac
 
     if [[ -z "$api_key" ]]; then
         echo -e "${red}自动安装需要设置 KITTY_API_KEY。${plain}"
@@ -177,6 +186,7 @@ generate_env_config() {
       "DeviceOnlineMinTraffic": 200,
       "MinReportTraffic": 0,
       "ReportMinTraffic": 0,
+      "EnableProxyProtocol": $enable_proxy_protocol,
       "TCPFastOpen": false,
       "SniffEnabled": true,
       "CertConfig": {

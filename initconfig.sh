@@ -120,6 +120,15 @@ add_node_config() {
     if [ "$ipv6_support" -eq 1 ]; then
         listen_ip="::"
     fi
+    enable_proxy_protocol=false
+    echo -e "${yellow}是否开启 EnableProxyProtocol？仅中转/负载均衡发送 PROXY protocol 时开启${plain}"
+    echo -e "${green}1. 不开启${plain}"
+    echo -e "${green}2. 开启${plain}"
+    read -rp "请输入：" enable_proxy_protocol_choice
+    case "$enable_proxy_protocol_choice" in
+        2 ) enable_proxy_protocol=true ;;
+        * ) enable_proxy_protocol=false ;;
+    esac
     node_config=""
     if [ "$core_type" == "1" ]; then 
     node_config=$(cat <<EOF
@@ -134,7 +143,7 @@ add_node_config() {
             "SendIP": "0.0.0.0",
             "DeviceOnlineMinTraffic": 200,
             "MinReportTraffic": 0,
-            "EnableProxyProtocol": false,
+            "EnableProxyProtocol": $enable_proxy_protocol,
             "EnableUot": true,
             "EnableTFO": true,
             "DNSType": "UseIPv4",
@@ -166,6 +175,7 @@ EOF
             "SendIP": "0.0.0.0",
             "DeviceOnlineMinTraffic": 200,
             "MinReportTraffic": 0,
+            "EnableProxyProtocol": $enable_proxy_protocol,
             "TCPFastOpen": $fastopen,
             "SniffEnabled": true,
             "CertConfig": {
@@ -197,6 +207,7 @@ EOF
             "SendIP": "0.0.0.0",
             "DeviceOnlineMinTraffic": 200,
             "MinReportTraffic": 0,
+            "EnableProxyProtocol": $enable_proxy_protocol,
             "CertConfig": {
                 "CertMode": "$certmode",
                 "RejectUnknownSni": false,
@@ -225,6 +236,7 @@ EOF
             "SendIP": "0.0.0.0",
             "DeviceOnlineMinTraffic": 200,
             "MinReportTraffic": 0,
+            "EnableProxyProtocol": $enable_proxy_protocol,
             "TCPFastOpen": $fastopen,
             "SniffEnabled": true,
             "CertConfig": {
