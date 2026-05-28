@@ -65,6 +65,245 @@ check_ipv6_support() {
     fi
 }
 
+install_nginx() {
+    if command -v nginx >/dev/null 2>&1; then
+        return 0
+    fi
+    if [[ x"${release}" == x"centos" ]]; then
+        yum install nginx -y >/dev/null 2>&1
+    elif [[ x"${release}" == x"alpine" ]]; then
+        apk add nginx >/dev/null 2>&1
+    elif [[ x"${release}" == x"debian" || x"${release}" == x"ubuntu" ]]; then
+        apt-get update -y >/dev/null 2>&1
+        apt install nginx -y >/dev/null 2>&1
+    elif [[ x"${release}" == x"arch" ]]; then
+        pacman -S --noconfirm --needed nginx >/dev/null 2>&1
+    fi
+}
+
+setup_hy2_443_frontend() {
+    local domain="$1"
+    local cert_file="$2"
+    local key_file="$3"
+    local cert_mode="${4:-}"
+    local nginx_conf_dir="/etc/nginx/conf.d"
+    if [[ x"${release}" == x"alpine" ]]; then
+        nginx_conf_dir="/etc/nginx/http.d"
+    fi
+
+    install_nginx
+    mkdir -p /var/www/techpulse "$nginx_conf_dir"
+    cat > /var/www/techpulse/index.html <<'EOF'
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PicShelf 图床</title>
+  <style>
+    :root { font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #17202a; background: #f5f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f7fb; color: #17202a; }
+    header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(18px, 5vw, 72px); border-bottom: 1px solid #dbe2ec; background: #fff; }
+    .brand { display: flex; gap: 10px; align-items: center; font-size: 22px; font-weight: 800; }
+    .mark { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: #0f766e; color: #fff; font-weight: 900; }
+    nav { display: flex; gap: 18px; color: #64748b; font-size: 14px; }
+    main { max-width: 1120px; margin: 0 auto; padding: 30px 18px 56px; }
+    .workspace { display: grid; grid-template-columns: 1.1fr .9fr; gap: 22px; }
+    .panel, .item { background: #fff; border: 1px solid #dbe2ec; border-radius: 8px; }
+    .panel { padding: 22px; }
+    h1 { margin: 0 0 10px; font-size: clamp(30px, 5vw, 52px); line-height: 1.05; }
+    h2 { margin: 28px 0 14px; font-size: 22px; }
+    p { margin: 0; line-height: 1.7; color: #536173; }
+    .upload { margin-top: 22px; border: 1px dashed #94a3b8; border-radius: 8px; min-height: 210px; display: grid; place-items: center; text-align: center; background: #f8fafc; overflow: hidden; }
+    .upload input { display: none; }
+    .upload label { cursor: pointer; display: grid; gap: 10px; justify-items: center; padding: 28px; width: 100%; }
+    .upload img { max-width: 100%; max-height: 210px; object-fit: contain; border-radius: 8px; }
+    .button { border: 0; border-radius: 8px; padding: 11px 16px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    .muted { color: #718096; font-size: 14px; }
+    .links { display: grid; gap: 10px; margin-top: 16px; }
+    .linkrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; }
+    code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #334155; }
+    .copy { border: 1px solid #cbd5e1; background: #fff; color: #0f766e; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+    .gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .item { overflow: hidden; }
+    .item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #e2e8f0; }
+    .caption { padding: 10px 12px; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: #64748b; }
+    @media (max-width: 820px) { .workspace { grid-template-columns: 1fr; } nav { display: none; } .gallery { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <header><div class="brand"><span class="mark">P</span>PicShelf 图床</div><nav><span>上传</span><span>相册</span><span>链接管理</span></nav></header>
+  <main>
+    <section class="workspace">
+      <div class="panel"><h1>快速上传，稳定分发图片链接</h1><p>支持 JPG、PNG、WebP 和 GIF。当前为静态演示页，选择图片后可在本地预览。</p><div class="upload" id="dropzone"><label for="fileInput"><span class="button">选择图片</span><span class="muted">拖放图片到这里，或点击选择文件</span></label><input id="fileInput" type="file" accept="image/*"></div></div>
+      <aside class="panel"><h2>最近链接</h2><div class="links"><div class="linkrow"><code>https://i.picshelf.local/2026/sunset.webp</code><button class="copy">复制</button></div><div class="linkrow"><code>https://i.picshelf.local/2026/mockup.png</code><button class="copy">复制</button></div><div class="linkrow"><code>https://i.picshelf.local/2026/avatar.jpg</code><button class="copy">复制</button></div></div></aside>
+    </section>
+    <h2>公开相册</h2>
+    <section class="gallery">
+      <div class="item"><img alt="gallery" src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=70"><div class="caption"><span>cover.webp</span><span>1.2 MB</span></div></div>
+      <div class="item"><img alt="gallery" src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=70"><div class="caption"><span>desk.jpg</span><span>860 KB</span></div></div>
+      <div class="item"><img alt="gallery" src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=600&q=70"><div class="caption"><span>screen.png</span><span>940 KB</span></div></div>
+      <div class="item"><img alt="gallery" src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=70"><div class="caption"><span>camera.jpg</span><span>730 KB</span></div></div>
+    </section>
+  </main>
+  <script>
+    const input = document.getElementById('fileInput');
+    const zone = document.getElementById('dropzone');
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const img = document.createElement('img');
+      img.alt = file.name;
+      img.src = URL.createObjectURL(file);
+      zone.innerHTML = '';
+      zone.appendChild(img);
+    });
+    document.querySelectorAll('.copy').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const text = button.parentElement.querySelector('code').textContent;
+        try { await navigator.clipboard.writeText(text); button.textContent = '已复制'; }
+        catch (e) { button.textContent = '复制'; }
+      });
+    });
+  </script>
+</body>
+</html>
+EOF
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf /etc/nginx/http.d/default.conf
+    cat > /usr/local/bin/kitty-hy2-nginx-refresh <<EOF
+#!/bin/bash
+nginx_conf_dir="$nginx_conf_dir"
+domain="$domain"
+cert_file="$cert_file"
+key_file="$key_file"
+if [[ -f "\$cert_file" && -f "\$key_file" ]]; then
+    cat > "\$nginx_conf_dir/techpulse.conf" <<NGINX
+server {
+    listen 80;
+    server_name \$domain _;
+    root /var/www/techpulse;
+    index index.html;
+    location / { try_files \\\$uri \\\$uri/ /index.html; }
+}
+server {
+    listen 443 ssl http2;
+    server_name \$domain _;
+    root /var/www/techpulse;
+    index index.html;
+    ssl_certificate \$cert_file;
+    ssl_certificate_key \$key_file;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+    location / { try_files \\\$uri \\\$uri/ /index.html; }
+}
+NGINX
+else
+    cat > "\$nginx_conf_dir/techpulse.conf" <<NGINX
+server {
+    listen 80;
+    server_name \$domain _;
+    root /var/www/techpulse;
+    index index.html;
+    location / { try_files \\\$uri \\\$uri/ /index.html; }
+}
+NGINX
+fi
+EOF
+    chmod +x /usr/local/bin/kitty-hy2-nginx-refresh
+    if [[ -f "$cert_file" && -f "$key_file" ]]; then
+        /usr/local/bin/kitty-hy2-nginx-refresh
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl enable nginx >/dev/null 2>&1
+            systemctl restart nginx >/dev/null 2>&1 || true
+        elif command -v rc-update >/dev/null 2>&1; then
+            rc-update add nginx default >/dev/null 2>&1
+            service nginx restart >/dev/null 2>&1 || true
+        else
+            service nginx restart >/dev/null 2>&1 || true
+        fi
+        echo -e "${green}已配置 nginx TCP/443 PicShelf 图床页；HY2 使用 UDP/443。${plain}"
+    elif [[ "$cert_mode" == "http" ]]; then
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop nginx >/dev/null 2>&1 || true
+        else
+            service nginx stop >/dev/null 2>&1 || true
+        fi
+        echo -e "${yellow}HTTP 证书模式需要 80 端口，已先释放 nginx；证书签发后会自动启用 TCP/443 网页。${plain}"
+    else
+        /usr/local/bin/kitty-hy2-nginx-refresh
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl enable nginx >/dev/null 2>&1
+            systemctl restart nginx >/dev/null 2>&1 || true
+        elif command -v rc-update >/dev/null 2>&1; then
+            rc-update add nginx default >/dev/null 2>&1
+            service nginx restart >/dev/null 2>&1 || true
+        else
+            service nginx restart >/dev/null 2>&1 || true
+        fi
+        echo -e "${yellow}未找到证书文件，已先生成 PicShelf HTTP 图床页；证书生成后会自动启用 TCP/443。${plain}"
+    fi
+}
+
+wait_for_hy2_frontend() {
+    local cert_file="$1"
+    local key_file="$2"
+    local waited=0
+    while [[ $waited -lt 120 ]]; do
+        if [[ -f "$cert_file" && -f "$key_file" ]]; then
+            /usr/local/bin/kitty-hy2-nginx-refresh >/dev/null 2>&1 || true
+            if command -v systemctl >/dev/null 2>&1; then
+                systemctl enable nginx >/dev/null 2>&1
+                systemctl restart nginx >/dev/null 2>&1 || true
+            elif command -v rc-update >/dev/null 2>&1; then
+                rc-update add nginx default >/dev/null 2>&1
+                service nginx restart >/dev/null 2>&1 || true
+            else
+                service nginx restart >/dev/null 2>&1 || true
+            fi
+            echo -e "${green}证书已就绪，PicShelf 图床页已启用 HTTPS。${plain}"
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    echo -e "${yellow}暂未等到证书文件，请稍后查看 kitty log；证书成功后可执行 /usr/local/bin/kitty-hy2-nginx-refresh 并重启 nginx。${plain}"
+    return 1
+}
+
+create_hy2_443_config() {
+    hy2_selected=true
+    mkdir -p /etc/kitty
+    cat <<EOF > /etc/kitty/hy2config.yaml
+listen: ":443"
+quic:
+  initStreamReceiveWindow: 8388608
+  maxStreamReceiveWindow: 8388608
+  initConnReceiveWindow: 20971520
+  maxConnReceiveWindow: 20971520
+  maxIdleTimeout: 30s
+  maxIncomingStreams: 1024
+  disablePathMTUDiscovery: false
+ignoreClientBandwidth: false
+disableUDP: false
+udpIdleTimeout: 60s
+resolver:
+  type: system
+acl:
+  inline:
+    - direct(geosite:google)
+    - reject(geosite:cn)
+    - reject(geoip:cn)
+masquerade:
+  type: proxy
+  proxy:
+    url: "http://127.0.0.1"
+    rewriteHost: false
+EOF
+    setup_hy2_443_frontend "$certdomain" "/etc/kitty/fullchain.cer" "/etc/kitty/cert.key" "$certmode"
+    echo -e "${green}已自动创建 HY2 UDP/443 配置：/etc/kitty/hy2config.yaml${plain}"
+}
+
 confirm() {
     if [[ $# > 1 ]]; then
         echo && read -rp "$1 [默认$2]: " temp
@@ -223,8 +462,16 @@ stop() {
 
 restart() {
     if [[ x"${release}" == x"alpine" ]]; then
+        if [[ ! -f /etc/init.d/kitty ]]; then
+            echo -e "${yellow}未检测到 kitty 服务，请先执行 kitty install 安装。${plain}"
+            return
+        fi
         service kitty restart
     else
+        if ! command -v systemctl >/dev/null 2>&1 || ! systemctl list-unit-files kitty.service --no-legend 2>/dev/null | grep -q '^kitty.service'; then
+            echo -e "${yellow}未检测到 kitty.service，请先执行 kitty install 安装。${plain}"
+            return
+        fi
         systemctl restart kitty
     fi
     sleep 2
@@ -527,6 +774,9 @@ add_node_config() {
             echo -e "${red}请手动修改配置文件后重启kitty！${plain}"
         fi
     fi
+    if [ "$NodeType" == "hysteria2" ]; then
+        create_hy2_443_config
+    fi
     ipv6_support=$(check_ipv6_support)
     listen_ip="0.0.0.0"
     if [ "$ipv6_support" -eq 1 ]; then
@@ -687,6 +937,7 @@ generate_config_file() {
     core_sing=false
     core_hysteria2=false
     core_ssr=false
+    hy2_selected=false
     fixed_api_info=false
     check_api=false
     
@@ -771,11 +1022,12 @@ generate_config_file() {
     cores_config+="]"
     cores_config=$(echo "$cores_config" | sed 's/},]$/}]/')
 
-    # 切换到配置文件目录
-    cd /etc/kitty
-    
+    mkdir -p /etc/kitty
+
     # 备份旧的配置文件
-    mv config.json config.json.bak
+    if [[ -f /etc/kitty/config.json ]]; then
+        cp -f /etc/kitty/config.json /etc/kitty/config.json.bak
+    fi
     nodes_config_str="${nodes_config[*]}"
     formatted_nodes_config="${nodes_config_str%,}"
 
@@ -957,31 +1209,11 @@ EOF
 }
 EOF
 
-    # 创建 hy2config.yaml 文件           
-    cat <<EOF > /etc/kitty/hy2config.yaml
-quic:
-  initStreamReceiveWindow: 8388608
-  maxStreamReceiveWindow: 8388608
-  initConnReceiveWindow: 20971520
-  maxConnReceiveWindow: 20971520
-  maxIdleTimeout: 30s
-  maxIncomingStreams: 1024
-  disablePathMTUDiscovery: false
-ignoreClientBandwidth: false
-disableUDP: false
-udpIdleTimeout: 60s
-resolver:
-  type: system
-acl:
-  inline:
-    - direct(geosite:google)
-    - reject(geosite:cn)
-    - reject(geoip:cn)
-masquerade:
-  type: 404
-EOF
     echo -e "${green}kitty 配置文件生成完成，正在重新启动 kitty 服务${plain}"
     restart 0
+    if [ "$hy2_selected" = true ]; then
+        wait_for_hy2_frontend "/etc/kitty/fullchain.cer" "/etc/kitty/cert.key"
+    fi
     before_show_menu
 }
 
