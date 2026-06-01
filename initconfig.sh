@@ -41,6 +41,44 @@ install_nginx() {
     fi
 }
 
+ensure_geo_assets() {
+    mkdir -p /etc/kitty
+    for asset in geoip.dat geosite.dat; do
+        local url=""
+        if [[ "$asset" == "geoip.dat" ]]; then
+            url="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat"
+        else
+            url="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        fi
+
+        local source_file=""
+        for path in "/etc/kitty/$asset" "/usr/local/kitty/$asset" "${cur_dir:-$(pwd)}/$asset" "./$asset"; do
+            if [[ -s "$path" ]]; then
+                source_file="$path"
+                break
+            fi
+        done
+
+        if [[ -z "$source_file" ]]; then
+            if command -v curl >/dev/null 2>&1; then
+                curl -fsSL --retry 3 -o "/etc/kitty/$asset" "$url" || true
+            elif command -v wget >/dev/null 2>&1; then
+                wget -qO "/etc/kitty/$asset" "$url" || true
+            fi
+            if [[ -s "/etc/kitty/$asset" ]]; then
+                source_file="/etc/kitty/$asset"
+            fi
+        fi
+
+        if [[ -n "$source_file" && -s "$source_file" ]]; then
+            cp -f "$source_file" "/etc/kitty/$asset"
+            chmod 644 "/etc/kitty/$asset"
+        else
+            echo -e "${yellow}警告：未能准备 $asset，xray/singbox 路由可能无法启动。${plain}"
+        fi
+    done
+}
+
 setup_hy2_443_frontend() {
     local domain="$1"
     local cert_file="$2"
@@ -235,7 +273,6 @@ create_hy2_443_config() {
     hy2_selected=true
     mkdir -p /etc/kitty
     cat <<EOF > /etc/kitty/hy2config.yaml
-listen: ":443"
 quic:
   initStreamReceiveWindow: 8388608
   maxStreamReceiveWindow: 8388608
@@ -261,7 +298,8 @@ masquerade:
     rewriteHost: false
 EOF
     setup_hy2_443_frontend "$certdomain" "/etc/kitty/fullchain.cer" "/etc/kitty/cert.key" "$certmode"
-    echo -e "${green}已自动创建 HY2 UDP/443 配置：/etc/kitty/hy2config.yaml${plain}"
+    echo -e "${green}已自动创建 HY2 配置：/etc/kitty/hy2config.yaml${plain}"
+    echo -e "${green}HY2 UDP 监听端口将使用面板 server_port；TCP/443 仍用于 nginx 伪装。${plain}"
 }
 
 add_node_config() {
@@ -567,6 +605,7 @@ generate_config_file() {
         cores_config+="
     {
         \"Type\": \"xray\",
+        \"AssetPath\": \"/etc/kitty/\",
         \"Log\": {
             \"Level\": \"error\",
             \"ErrorPath\": \"/etc/kitty/error.log\"
@@ -618,6 +657,7 @@ generate_config_file() {
     cores_config=$(echo "$cores_config" | sed 's/},]$/}]/')
 
     mkdir -p /etc/kitty
+    ensure_geo_assets
 
     # 备份旧的配置文件
     if [[ -f /etc/kitty/config.json ]]; then

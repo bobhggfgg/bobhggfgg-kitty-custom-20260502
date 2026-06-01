@@ -139,6 +139,44 @@ install_nginx() {
     fi
 }
 
+ensure_geo_assets() {
+    mkdir -p /etc/kitty
+    for asset in geoip.dat geosite.dat; do
+        local url=""
+        if [[ "$asset" == "geoip.dat" ]]; then
+            url="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat"
+        else
+            url="https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+        fi
+
+        local source_file=""
+        for path in "/usr/local/kitty/$asset" "/etc/kitty/$asset" "$cur_dir/$asset" "./$asset"; do
+            if [[ -s "$path" ]]; then
+                source_file="$path"
+                break
+            fi
+        done
+
+        if [[ -z "$source_file" ]]; then
+            if command -v curl >/dev/null 2>&1; then
+                curl -fsSL --retry 3 -o "/etc/kitty/$asset" "$url" || true
+            elif command -v wget >/dev/null 2>&1; then
+                wget -qO "/etc/kitty/$asset" "$url" || true
+            fi
+            if [[ -s "/etc/kitty/$asset" ]]; then
+                source_file="/etc/kitty/$asset"
+            fi
+        fi
+
+        if [[ -n "$source_file" && -s "$source_file" ]]; then
+            cp -f "$source_file" "/etc/kitty/$asset"
+            chmod 644 "/etc/kitty/$asset"
+        else
+            echo -e "${yellow}警告：未能准备 $asset，xray/singbox 路由可能无法启动。${plain}"
+        fi
+    done
+}
+
 write_techpulse_site() {
     mkdir -p /var/www/techpulse
     cat > /var/www/techpulse/index.html <<'EOF'
@@ -374,7 +412,7 @@ generate_env_config() {
     local dns_env_name="${KITTY_DNS_ENV_NAME:-env1}"
     local enable_proxy_protocol="${KITTY_ENABLE_PROXY_PROTOCOL:-false}"
     local hy2_config_path="${KITTY_HY2_CONFIG_PATH:-/etc/kitty/hy2config.yaml}"
-    local hy2_listen="${KITTY_HY2_LISTEN:-:443}"
+    local hy2_listen="${KITTY_HY2_LISTEN:-}"
     local hy2_masquerade_url="${KITTY_HY2_MASQUERADE_URL:-http://127.0.0.1}"
     case "${enable_proxy_protocol,,}" in
         1|true|yes|y)
@@ -444,8 +482,11 @@ generate_env_config() {
 }
 EOF
     if [[ "$core_type" == "hysteria2" ]]; then
-        cat > "$hy2_config_path" <<EOF
-listen: "$hy2_listen"
+        : > "$hy2_config_path"
+        if [[ -n "$hy2_listen" ]]; then
+            printf 'listen: "%s"\n' "$hy2_listen" >> "$hy2_config_path"
+        fi
+        cat >> "$hy2_config_path" <<EOF
 quic:
   initStreamReceiveWindow: 8388608
   maxStreamReceiveWindow: 8388608
@@ -470,6 +511,11 @@ masquerade:
     url: "$hy2_masquerade_url"
     rewriteHost: false
 EOF
+        if [[ -n "$hy2_listen" ]]; then
+            echo -e "${yellow}HY2 UDP 监听已由 KITTY_HY2_LISTEN 覆盖：$hy2_listen${plain}"
+        else
+            echo -e "${green}HY2 UDP 监听端口将使用面板 server_port。${plain}"
+        fi
         echo -e "${green}已自动生成 HY2 配置：$hy2_config_path${plain}"
     fi
     echo -e "${green}已自动生成配置：/etc/kitty/config.json${plain}"
@@ -509,9 +555,7 @@ install_kitty() {
     unzip kitty-linux.zip
     rm kitty-linux.zip -f
     chmod +x kitty
-    mkdir /etc/kitty/ -p
-    cp geoip.dat /etc/kitty/
-    cp geosite.dat /etc/kitty/
+    ensure_geo_assets
     if [[ x"${release}" == x"alpine" ]]; then
         rm /etc/init.d/kitty -f
         cat <<EOF > /etc/init.d/kitty
