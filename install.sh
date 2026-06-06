@@ -402,9 +402,19 @@ build_dns_env_json() {
 
     case "$provider" in
         cloudflare)
+            local origin_key="${KITTY_CF_ORIGIN_CA_KEY:-${CF_ORIGIN_CA_KEY:-${CF_USER_SERVICE_KEY:-}}}"
+            local origin_token="${KITTY_CF_ORIGIN_CA_TOKEN:-${CF_ORIGIN_CA_TOKEN:-${CF_API_TOKEN:-}}}"
             local token="${KITTY_CF_DNS_API_TOKEN:-${CF_DNS_API_TOKEN:-}}"
             local api_key="${KITTY_CF_API_KEY:-${CF_API_KEY:-}}"
             local api_email="${KITTY_CF_API_EMAIL:-${CF_API_EMAIL:-}}"
+            if [[ -n "$origin_key" ]]; then
+                printf '{\n          "CF_ORIGIN_CA_KEY": "%s"\n        }' "$(json_escape "$origin_key")"
+                return
+            fi
+            if [[ -n "$origin_token" ]]; then
+                printf '{\n          "CF_ORIGIN_CA_TOKEN": "%s"\n        }' "$(json_escape "$origin_token")"
+                return
+            fi
             if [[ -n "$token" ]]; then
                 printf '{\n          "CF_DNS_API_TOKEN": "%s"\n        }' "$(json_escape "$token")"
                 return
@@ -459,8 +469,8 @@ generate_env_config() {
         echo -e "${red}KITTY_NODE_ID 必须是数字。${plain}"
         exit 1
     fi
-    if [[ "$cert_mode" == "dns" && "$dns_env_json" == "{}" ]]; then
-        echo -e "${red}KITTY_CERT_MODE=dns 时必须设置 KITTY_CF_DNS_API_TOKEN 或 CF_DNS_API_TOKEN。${plain}"
+    if [[ ( "$cert_mode" == "dns" || "$cert_mode" == "cf_origin" ) && "$cert_provider" == "cloudflare" && "$dns_env_json" == "{}" ]]; then
+        echo -e "${red}KITTY_CERT_MODE=$cert_mode 且 provider=cloudflare 时必须设置 KITTY_CF_ORIGIN_CA_KEY 或 CF_ORIGIN_CA_KEY。${plain}"
         exit 1
     fi
 

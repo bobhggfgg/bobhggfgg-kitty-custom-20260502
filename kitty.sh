@@ -69,9 +69,9 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-cloudflare_dns_env_json() {
+cloudflare_origin_env_json() {
     local token="$1"
-    printf '{\n                    "CF_DNS_API_TOKEN": "%s"\n                }' "$(json_escape "$token")"
+    printf '{\n                    "CF_ORIGIN_CA_KEY": "%s"\n                }' "$(json_escape "$token")"
 }
 
 install_nginx() {
@@ -800,34 +800,32 @@ add_node_config() {
 
     certmode="none"
     certdomain="example.com"
+    certemail="kitty@github.com"
     certprovider="cloudflare"
     dns_env_json="{}"
     if [[ "$isreality" != "y" && "$isreality" != "Y" && ( "$istls" == "y" || "$istls" == "Y" ) ]]; then
         echo -e "${yellow}请选择证书申请模式：${plain}"
         echo -e "${green}1. http模式自动申请，节点域名已正确解析${plain}"
-        echo -e "${green}2. dns模式自动申请，需填入正确域名服务商API参数${plain}"
+        echo -e "${green}2. Cloudflare Origin证书自动申请，不走Let's Encrypt${plain}"
         echo -e "${green}3. self模式，自签证书或提供已有证书文件${plain}"
         read -rp "请输入：" certmode
         case "$certmode" in
             1 ) certmode="http" ;;
-            2 ) certmode="dns" ;;
+            2 ) certmode="cf_origin" ;;
             3 ) certmode="self" ;;
         esac
         read -rp "请输入节点证书域名(example.com)：" certdomain
-        if [ "$certmode" == "dns" ]; then
-            read -rp "请输入DNS服务商(cloudflare)：" certprovider
-            certprovider="${certprovider:-cloudflare}"
-            if [ "$certprovider" == "cloudflare" ]; then
-                read -rsp "请输入Cloudflare CF_DNS_API_TOKEN：" cf_dns_api_token
-                echo
-                if [[ -z "$cf_dns_api_token" ]]; then
-                    echo -e "${red}DNS模式必须填写 CF_DNS_API_TOKEN。${plain}"
-                    return 1
-                fi
-                dns_env_json="$(cloudflare_dns_env_json "$cf_dns_api_token")"
-            else
-                echo -e "${red}当前脚本只自动写入 cloudflare；其他服务商请手动修改 DNSEnv 后重启 kitty。${plain}"
+        read -rp "请输入证书邮箱(回车默认 kitty@github.com)：" certemail
+        certemail="${certemail:-kitty@github.com}"
+        if [ "$certmode" == "cf_origin" ]; then
+            certprovider="cloudflare"
+            read -rsp "请输入Cloudflare Origin CA Key（不是面板API Key，也不是DNS API Token）：" cf_origin_ca_key
+            echo
+            if [[ -z "$cf_origin_ca_key" ]]; then
+                echo -e "${red}Cloudflare Origin证书模式必须填写 Origin CA Key。${plain}"
+                return 1
             fi
+            dns_env_json="$(cloudflare_origin_env_json "$cf_origin_ca_key")"
         elif [ "$certmode" == "self" ]; then
             echo -e "${yellow}self模式为自签证书，客户端需要允许 insecure/跳过证书验证。${plain}"
         fi
@@ -873,7 +871,7 @@ add_node_config() {
                 "CertDomain": "$certdomain",
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
-                "Email": "kitty@github.com",
+                "Email": "$certemail",
                 "Provider": "$certprovider",
                 "DNSEnv": $dns_env_json
             }
@@ -902,7 +900,7 @@ EOF
                 "CertDomain": "$certdomain",
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
-                "Email": "kitty@github.com",
+                "Email": "$certemail",
                 "Provider": "$certprovider",
                 "DNSEnv": $dns_env_json
             }
@@ -930,7 +928,7 @@ EOF
                 "CertDomain": "$certdomain",
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
-                "Email": "kitty@github.com",
+                "Email": "$certemail",
                 "Provider": "$certprovider",
                 "DNSEnv": $dns_env_json
             }
@@ -959,7 +957,7 @@ EOF
                 "CertDomain": "$certdomain",
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
-                "Email": "kitty@github.com",
+                "Email": "$certemail",
                 "Provider": "$certprovider",
                 "DNSEnv": $dns_env_json
             }
@@ -993,8 +991,8 @@ generate_config_file() {
     
     while true; do
         if [ "$first_node" = true ]; then
-            read -rp "请输入机场网址(https://example.com)：" ApiHost
-            read -rp "请输入面板对接API Key：" ApiKey
+            read -rp "请输入面板地址/机场网址(例如 https://example.com)：" ApiHost
+            read -rp "请输入面板通讯密钥 ApiKey（不是 Cloudflare Key）：" ApiKey
             read -rp "是否设置固定的机场网址和API Key？(y/n)" fixed_api
             if [ "$fixed_api" = "y" ] || [ "$fixed_api" = "Y" ]; then
                 fixed_api_info=true
@@ -1007,8 +1005,8 @@ generate_config_file() {
             if [[ "$continue_adding_node" =~ ^[Nn][Oo]? ]]; then
                 break
             elif [ "$fixed_api_info" = false ]; then
-                read -rp "请输入机场网址：" ApiHost
-                read -rp "请输入面板对接API Key：" ApiKey
+                read -rp "请输入面板地址/机场网址(例如 https://example.com)：" ApiHost
+                read -rp "请输入面板通讯密钥 ApiKey（不是 Cloudflare Key）：" ApiKey
             fi
             add_node_config
         fi
