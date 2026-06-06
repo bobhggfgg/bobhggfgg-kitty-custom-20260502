@@ -393,6 +393,15 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+print_cloudflare_origin_env_json() {
+    local credential="$1"
+    local env_name="CF_ORIGIN_CA_KEY"
+    if [[ "$credential" == cfut_* ]]; then
+        env_name="CF_ORIGIN_CA_TOKEN"
+    fi
+    printf '{\n          "%s": "%s"\n        }' "$env_name" "$(json_escape "$credential")"
+}
+
 build_dns_env_json() {
     local provider="${1:-cloudflare}"
     if [[ -n "${KITTY_DNS_ENV_JSON:-}" ]]; then
@@ -408,11 +417,11 @@ build_dns_env_json() {
             local api_key="${KITTY_CF_API_KEY:-${CF_API_KEY:-}}"
             local api_email="${KITTY_CF_API_EMAIL:-${CF_API_EMAIL:-}}"
             if [[ -n "$origin_key" ]]; then
-                printf '{\n          "CF_ORIGIN_CA_KEY": "%s"\n        }' "$(json_escape "$origin_key")"
+                print_cloudflare_origin_env_json "$origin_key"
                 return
             fi
             if [[ -n "$origin_token" ]]; then
-                printf '{\n          "CF_ORIGIN_CA_TOKEN": "%s"\n        }' "$(json_escape "$origin_token")"
+                print_cloudflare_origin_env_json "$origin_token"
                 return
             fi
             if [[ -n "$token" ]]; then
@@ -470,7 +479,7 @@ generate_env_config() {
         exit 1
     fi
     if [[ ( "$cert_mode" == "dns" || "$cert_mode" == "cf_origin" ) && "$cert_provider" == "cloudflare" && "$dns_env_json" == "{}" ]]; then
-        echo -e "${red}KITTY_CERT_MODE=$cert_mode 且 provider=cloudflare 时必须设置 KITTY_CF_ORIGIN_CA_KEY 或 CF_ORIGIN_CA_KEY。${plain}"
+        echo -e "${red}KITTY_CERT_MODE=$cert_mode 且 provider=cloudflare 时必须设置 KITTY_CF_ORIGIN_CA_TOKEN、CF_ORIGIN_CA_TOKEN、KITTY_CF_ORIGIN_CA_KEY、CF_ORIGIN_CA_KEY 或 CF_API_TOKEN。${plain}"
         exit 1
     fi
 

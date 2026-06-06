@@ -70,8 +70,12 @@ json_escape() {
 }
 
 cloudflare_origin_env_json() {
-    local token="$1"
-    printf '{\n                    "CF_ORIGIN_CA_KEY": "%s"\n                }' "$(json_escape "$token")"
+    local credential="$1"
+    local env_name="CF_ORIGIN_CA_KEY"
+    if [[ "$credential" == cfut_* ]]; then
+        env_name="CF_ORIGIN_CA_TOKEN"
+    fi
+    printf '{\n                    "%s": "%s"\n                }' "$env_name" "$(json_escape "$credential")"
 }
 
 install_nginx() {
@@ -819,10 +823,10 @@ add_node_config() {
         certemail="${certemail:-kitty@github.com}"
         if [ "$certmode" == "cf_origin" ]; then
             certprovider="cloudflare"
-            read -rsp "请输入Cloudflare Origin CA Key（不是面板API Key，也不是DNS API Token）：" cf_origin_ca_key
-            echo
+            echo -e "${yellow}Cloudflare API Token权限请选择：区域 -> SSL和证书 -> 编辑；区域资源选当前域名或所有区域。${plain}"
+            read -rp "请输入Cloudflare Origin凭据（API Token填cfut_开头，Origin CA Key填v1.0-开头；不是面板API Key）：" cf_origin_ca_key
             if [[ -z "$cf_origin_ca_key" ]]; then
-                echo -e "${red}Cloudflare Origin证书模式必须填写 Origin CA Key。${plain}"
+                echo -e "${red}Cloudflare Origin证书模式必须填写 cfut_ API Token 或 v1.0- Origin CA Key。${plain}"
                 return 1
             fi
             dns_env_json="$(cloudflare_origin_env_json "$cf_origin_ca_key")"
