@@ -65,6 +65,15 @@ check_ipv6_support() {
     fi
 }
 
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+cloudflare_dns_env_json() {
+    local token="$1"
+    printf '{\n                    "CF_DNS_API_TOKEN": "%s"\n                }' "$(json_escape "$token")"
+}
+
 install_nginx() {
     if command -v nginx >/dev/null 2>&1; then
         return 0
@@ -326,11 +335,6 @@ disableUDP: false
 udpIdleTimeout: 60s
 resolver:
   type: system
-acl:
-  inline:
-    - direct(geosite:google)
-    - reject(geosite:cn)
-    - reject(geoip:cn)
 masquerade:
   type: proxy
   proxy:
@@ -796,6 +800,8 @@ add_node_config() {
 
     certmode="none"
     certdomain="example.com"
+    certprovider="cloudflare"
+    dns_env_json="{}"
     if [[ "$isreality" != "y" && "$isreality" != "Y" && ( "$istls" == "y" || "$istls" == "Y" ) ]]; then
         echo -e "${yellow}请选择证书申请模式：${plain}"
         echo -e "${green}1. http模式自动申请，节点域名已正确解析${plain}"
@@ -808,8 +814,22 @@ add_node_config() {
             3 ) certmode="self" ;;
         esac
         read -rp "请输入节点证书域名(example.com)：" certdomain
-        if [ "$certmode" != "http" ]; then
-            echo -e "${red}请手动修改配置文件后重启kitty！${plain}"
+        if [ "$certmode" == "dns" ]; then
+            read -rp "请输入DNS服务商(cloudflare)：" certprovider
+            certprovider="${certprovider:-cloudflare}"
+            if [ "$certprovider" == "cloudflare" ]; then
+                read -rsp "请输入Cloudflare CF_DNS_API_TOKEN：" cf_dns_api_token
+                echo
+                if [[ -z "$cf_dns_api_token" ]]; then
+                    echo -e "${red}DNS模式必须填写 CF_DNS_API_TOKEN。${plain}"
+                    return 1
+                fi
+                dns_env_json="$(cloudflare_dns_env_json "$cf_dns_api_token")"
+            else
+                echo -e "${red}当前脚本只自动写入 cloudflare；其他服务商请手动修改 DNSEnv 后重启 kitty。${plain}"
+            fi
+        elif [ "$certmode" == "self" ]; then
+            echo -e "${yellow}self模式为自签证书，客户端需要允许 insecure/跳过证书验证。${plain}"
         fi
     fi
     if [ "$NodeType" == "hysteria2" ]; then
@@ -854,10 +874,8 @@ add_node_config() {
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
                 "Email": "kitty@github.com",
-                "Provider": "cloudflare",
-                "DNSEnv": {
-                    "EnvName": "env1"
-                }
+                "Provider": "$certprovider",
+                "DNSEnv": $dns_env_json
             }
         },
 EOF
@@ -885,10 +903,8 @@ EOF
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
                 "Email": "kitty@github.com",
-                "Provider": "cloudflare",
-                "DNSEnv": {
-                    "EnvName": "env1"
-                }
+                "Provider": "$certprovider",
+                "DNSEnv": $dns_env_json
             }
         },
 EOF
@@ -915,10 +931,8 @@ EOF
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
                 "Email": "kitty@github.com",
-                "Provider": "cloudflare",
-                "DNSEnv": {
-                    "EnvName": "env1"
-                }
+                "Provider": "$certprovider",
+                "DNSEnv": $dns_env_json
             }
         },
 EOF
@@ -946,10 +960,8 @@ EOF
                 "CertFile": "/etc/kitty/fullchain.cer",
                 "KeyFile": "/etc/kitty/cert.key",
                 "Email": "kitty@github.com",
-                "Provider": "cloudflare",
-                "DNSEnv": {
-                    "EnvName": "env1"
-                }
+                "Provider": "$certprovider",
+                "DNSEnv": $dns_env_json
             }
         },
 EOF

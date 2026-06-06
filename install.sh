@@ -389,6 +389,36 @@ wait_for_hy2_frontend() {
     return 1
 }
 
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+build_dns_env_json() {
+    local provider="${1:-cloudflare}"
+    if [[ -n "${KITTY_DNS_ENV_JSON:-}" ]]; then
+        printf '%s' "$KITTY_DNS_ENV_JSON"
+        return
+    fi
+
+    case "$provider" in
+        cloudflare)
+            local token="${KITTY_CF_DNS_API_TOKEN:-${CF_DNS_API_TOKEN:-}}"
+            local api_key="${KITTY_CF_API_KEY:-${CF_API_KEY:-}}"
+            local api_email="${KITTY_CF_API_EMAIL:-${CF_API_EMAIL:-}}"
+            if [[ -n "$token" ]]; then
+                printf '{\n          "CF_DNS_API_TOKEN": "%s"\n        }' "$(json_escape "$token")"
+                return
+            fi
+            if [[ -n "$api_key" && -n "$api_email" ]]; then
+                printf '{\n          "CF_API_EMAIL": "%s",\n          "CF_API_KEY": "%s"\n        }' "$(json_escape "$api_email")" "$(json_escape "$api_key")"
+                return
+            fi
+            ;;
+    esac
+
+    printf '{}'
+}
+
 generate_env_config() {
     local api_host="${KITTY_API_HOST:-http://127.0.0.1}"
     local api_key="${KITTY_API_KEY:-}"
@@ -402,14 +432,12 @@ generate_env_config() {
     local send_ip="${KITTY_SEND_IP:-0.0.0.0}"
     local cert_mode="${KITTY_CERT_MODE:-self}"
     local cert_domain="${KITTY_CERT_DOMAIN:-www.apple.com.cn}"
-    if [[ -z "${KITTY_CERT_MODE:-}" && "$core_type" == "hysteria2" && -n "${KITTY_CERT_DOMAIN:-}" ]]; then
-        cert_mode="http"
-    fi
     local cert_file="${KITTY_CERT_FILE:-/etc/kitty/fullchain.cer}"
     local key_file="${KITTY_KEY_FILE:-/etc/kitty/cert.key}"
     local cert_email="${KITTY_CERT_EMAIL:-kitty@github.com}"
     local cert_provider="${KITTY_CERT_PROVIDER:-cloudflare}"
-    local dns_env_name="${KITTY_DNS_ENV_NAME:-env1}"
+    local dns_env_json
+    dns_env_json="$(build_dns_env_json "$cert_provider")"
     local enable_proxy_protocol="${KITTY_ENABLE_PROXY_PROTOCOL:-false}"
     local hy2_config_path="${KITTY_HY2_CONFIG_PATH:-/etc/kitty/hy2config.yaml}"
     local hy2_listen="${KITTY_HY2_LISTEN:-}"
@@ -429,6 +457,10 @@ generate_env_config() {
     fi
     if ! [[ "$node_id" =~ ^[0-9]+$ ]]; then
         echo -e "${red}KITTY_NODE_ID 必须是数字。${plain}"
+        exit 1
+    fi
+    if [[ "$cert_mode" == "dns" && "$dns_env_json" == "{}" ]]; then
+        echo -e "${red}KITTY_CERT_MODE=dns 时必须设置 KITTY_CF_DNS_API_TOKEN 或 CF_DNS_API_TOKEN。${plain}"
         exit 1
     fi
 
@@ -473,9 +505,7 @@ generate_env_config() {
         "KeyFile": "$key_file",
         "Email": "$cert_email",
         "Provider": "$cert_provider",
-        "DNSEnv": {
-          "EnvName": "$dns_env_name"
-        }
+        "DNSEnv": $dns_env_json
       }
     }
   ]
@@ -500,11 +530,6 @@ disableUDP: false
 udpIdleTimeout: 60s
 resolver:
   type: system
-acl:
-  inline:
-    - direct(geosite:google)
-    - reject(geosite:cn)
-    - reject(geoip:cn)
 masquerade:
   type: proxy
   proxy:
@@ -686,9 +711,6 @@ EOF
             fi
             if [[ "${KITTY_CORE:-ssr}" == "hysteria2" ]]; then
                 setup_cert_mode="${KITTY_CERT_MODE:-self}"
-                if [[ -z "${KITTY_CERT_MODE:-}" && -n "${KITTY_CERT_DOMAIN:-}" ]]; then
-                    setup_cert_mode="http"
-                fi
                 setup_hy2_443_frontend "${KITTY_CERT_DOMAIN:-www.apple.com.cn}" "${KITTY_CERT_FILE:-/etc/kitty/fullchain.cer}" "${KITTY_KEY_FILE:-/etc/kitty/cert.key}" "$setup_cert_mode"
                 wait_for_hy2_frontend "${KITTY_CERT_FILE:-/etc/kitty/fullchain.cer}" "${KITTY_KEY_FILE:-/etc/kitty/cert.key}"
             fi
